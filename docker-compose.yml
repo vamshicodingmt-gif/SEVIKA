@@ -1,0 +1,27 @@
+# Sevika local development database
+# PostgreSQL 16 + PostGIS for location-aware artist discovery.
+#
+#   docker compose up -d
+#   cp .env.example .env   # defaults already point at this database
+#   npm run db:migrate:dev && npm run db:seed
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: sevika-db
+    environment:
+      POSTGRES_USER: sevika
+      POSTGRES_PASSWORD: sevika
+      POSTGRES_DB: sevika
+    ports:
+      - "5432:5432"
+    volumes:
+      - sevika-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sevika -d sevika"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  sevika-db-data:

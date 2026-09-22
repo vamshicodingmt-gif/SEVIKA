@@ -1,0 +1,498 @@
+// Sevika — Beauty & Grooming Marketplace
+// 0% commission. Sevika never processes payments; customers and professionals
+// arrange payment directly. No payment gateway, escrow, payouts or fees exist
+// anywhere in this schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  ARTIST
+  ADMIN
+}
+
+enum OnlineStatus {
+  ONLINE
+  BUSY
+  OFFLINE
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum CertificateStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BookingType {
+  INDIVIDUAL
+  GROUP_EVENT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DECLINED
+  RESCHEDULE_REQUESTED
+}
+
+enum RescheduleRequestedBy {
+  CUSTOMER
+  ARTIST
+}
+
+enum NotificationType {
+  BOOKING
+  BOOKING_UPDATE
+  MESSAGE
+  REVIEW
+  VERIFICATION
+  ACCOUNT
+  SYSTEM
+}
+
+enum ReportTargetType {
+  USER
+  ARTIST_PROFILE
+  REVIEW
+  PORTFOLIO
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum PortfolioType {
+  IMAGE
+  VIDEO
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  passwordHash     String?
+  phone            String?
+  role             Role      @default(CUSTOMER)
+  avatarUrl        String?
+  city             String?
+  suspended        Boolean   @default(false)
+  suspensionReason String?
+  emailVerified    DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  artistProfile      ArtistProfile?
+  bookingsAsCustomer Booking[]      @relation("CustomerBookings")
+  reviews            Review[]
+  favorites          Favorite[]
+  notifications      Notification[]
+  conversations      Conversation[] @relation("CustomerConversations")
+  messages           Message[]
+  reports            Report[]       @relation("Reporter")
+  resolvedReports    Report[]       @relation("ReportResolver")
+  verifiedRequests   VerificationRequest[] @relation("VerificationReviewer")
+  tickets            SupportTicket[]
+  ticketMessages     TicketMessage[] @relation("TicketMessageSender")
+  auditLogs          AuditLog[]
+  addressedTickets   SupportTicket[] @relation("TicketAssignee")
+
+  @@index([role])
+  @@index([suspended])
+}
+
+model ArtistProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName        String
+  tagline            String?            @db.VarChar(160)
+  bio                String?            @db.VarChar(4000)
+  city               String?
+  serviceArea        String?            @db.VarChar(300)
+  addressLine        String?            @db.VarChar(300)
+  lat                Float?
+  lng                Float?
+  onlineStatus       OnlineStatus       @default(OFFLINE)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  yearsExperience    Int                @default(0)
+  categories         String[]           @default([])
+  specialties        String[]           @default([])
+  languages          String[]           @default([])
+  coverUrl           String?
+  profileViews       Int                @default(0)
+  completedJobs      Int                @default(0)
+  ratingAvg          Float              @default(0)
+  ratingCount        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  services            Service[]
+  portfolio           PortfolioItem[]
+  certificates        Certificate[]
+  availabilityRules   AvailabilityRule[]
+  blockedDates        BlockedDate[]
+  bookingsAsArtist    Booking[]          @relation("ArtistBookings")
+  conversations       Conversation[]     @relation("ArtistConversations")
+  reviews             Review[]
+  favoritedBy         Favorite[]
+  verificationRequest VerificationRequest?
+
+  @@index([city])
+  @@index([verificationStatus])
+  @@index([ratingAvg])
+}
+
+model VerificationRequest {
+  id          String             @id @default(cuid())
+  artistId    String             @unique
+  artist      ArtistProfile      @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  status      VerificationStatus @default(PENDING)
+  note        String?            @db.VarChar(1000)
+  reviewedById String?
+  reviewedBy  User?              @relation("VerificationReviewer", fields: [reviewedById], references: [id])
+  reviewNote  String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue
+// ---------------------------------------------------------------------------
+
+model Service {
+  id          String  @id @default(cuid())
+  artistId    String
+  artist      ArtistProfile @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  name        String  @db.VarChar(120)
+  description String? @db.VarChar(2000)
+  category    String
+  // Display price in the platform currency (e.g. INR). Informational only —
+  // Sevika charges no commission and does not process payments.
+  priceFrom   Int
+  durationMin Int     @default(60)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookingItems BookingService[]
+
+  @@index([artistId])
+  @@index([category])
+}
+
+model PortfolioItem {
+  id               String           @id @default(cuid())
+  artistId         String
+  artist           ArtistProfile    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  type             PortfolioType    @default(IMAGE)
+  url              String
+  thumbUrl         String?
+  title            String?          @db.VarChar(120)
+  category         String?
+  moderationStatus ModerationStatus @default(APPROVED)
+  createdAt        DateTime         @default(now())
+
+  @@index([artistId])
+  @@index([moderationStatus])
+}
+
+model Certificate {
+  id        String            @id @default(cuid())
+  artistId  String
+  artist    ArtistProfile     @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  title     String            @db.VarChar(160)
+  issuer    String?           @db.VarChar(160)
+  fileUrl   String
+  status    CertificateStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([artistId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Availability
+// ---------------------------------------------------------------------------
+
+model AvailabilityRule {
+  id         String @id @default(cuid())
+  artistId   String
+  artist     ArtistProfile @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  // 0 = Sunday … 6 = Saturday
+  weekday    Int
+  startMinute Int
+  endMinute  Int
+
+  @@index([artistId])
+}
+
+model BlockedDate {
+  id       String   @id @default(cuid())
+  artistId String
+  artist   ArtistProfile @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  note     String?  @db.VarChar(200)
+
+  @@unique([artistId, date])
+}
+
+// ---------------------------------------------------------------------------
+// Bookings — free to create. No payment fields by design.
+// ---------------------------------------------------------------------------
+
+model Booking {
+  id          String        @id @default(cuid())
+  code        String        @unique @default(cuid())
+  customerId  String
+  customer    User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
+  artistId    String
+  artist      ArtistProfile @relation("ArtistBookings", fields: [artistId], references: [id], onDelete: Cascade)
+  type        BookingType   @default(INDIVIDUAL)
+  status      BookingStatus @default(PENDING)
+  scheduledAt DateTime
+  durationMin Int
+  // Where the service happens (home visit / studio / event venue)
+  locationType String?      @db.VarChar(30) // HOME | STUDIO | VENUE
+  addressLine  String?      @db.VarChar(300)
+  city         String?      @db.VarChar(120)
+  pincode      String?      @db.VarChar(20)
+  lat          Float?
+  lng          Float?
+  notes        String?      @db.VarChar(2000)
+  groupName    String?      @db.VarChar(160)
+  headcount    Int?
+  contactPhone String?      @db.VarChar(30)
+  // Reschedule workflow
+  proposedAt          DateTime?
+  rescheduleRequestedBy RescheduleRequestedBy?
+  preRescheduleStatus   BookingStatus?
+  // Cancellation
+  cancelledById String?
+  cancelReason  String?       @db.VarChar(500)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  services BookingService[]
+  review   Review?
+  statusHistory BookingEvent[]
+
+  @@index([customerId, status])
+  @@index([artistId, status])
+  @@index([scheduledAt])
+}
+
+model BookingService {
+  id             String  @id @default(cuid())
+  bookingId      String
+  booking        Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  serviceId      String?
+  service        Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  name           String  @db.VarChar(120)
+  priceAtBooking Int
+  durationMin    Int
+
+  @@index([bookingId])
+}
+
+model BookingEvent {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  actorId   String?
+  type      String   @db.VarChar(60)
+  message   String?  @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+}
+
+// ---------------------------------------------------------------------------
+// Communication
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id            String   @id @default(cuid())
+  customerId    String
+  customer      User     @relation("CustomerConversations", fields: [customerId], references: [id], onDelete: Cascade)
+  artistId      String
+  artist        ArtistProfile @relation("ArtistConversations", fields: [artistId], references: [id], onDelete: Cascade)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  messages Message[]
+
+  @@unique([customerId, artistId])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String?       @db.VarChar(4000)
+  attachmentUrl  String?
+  readAt         DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType @default(SYSTEM)
+  title     String           @db.VarChar(160)
+  body      String?          @db.VarChar(600)
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Reputation
+// ---------------------------------------------------------------------------
+
+model Review {
+  id           String        @id @default(cuid())
+  bookingId    String        @unique
+  booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customerId   String
+  customer     User          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  artistId     String
+  artist       ArtistProfile @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  rating       Int
+  comment      String?       @db.VarChar(2000)
+  artistReply  String?       @db.VarChar(2000)
+  hidden       Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([artistId])
+}
+
+model Favorite {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artistId  String
+  artist    ArtistProfile @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([userId, artistId])
+}
+
+// ---------------------------------------------------------------------------
+// Trust & safety / support
+// ---------------------------------------------------------------------------
+
+model Report {
+  id           String           @id @default(cuid())
+  reporterId   String
+  reporter     User             @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType   ReportTargetType
+  targetId     String
+  reason       String           @db.VarChar(160)
+  details      String?          @db.VarChar(2000)
+  status       ReportStatus     @default(OPEN)
+  resolution   String?          @db.VarChar(1000)
+  resolvedById String?
+  resolvedBy   User?            @relation("ReportResolver", fields: [resolvedById], references: [id])
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([status])
+}
+
+model SupportTicket {
+  id          String       @id @default(cuid())
+  code        String       @unique @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     String       @db.VarChar(200)
+  status      TicketStatus @default(OPEN)
+  assignedById String?
+  assignee    User?        @relation("TicketAssignee", fields: [assignedById], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  messages TicketMessage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model TicketMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User          @relation("TicketMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  body      String        @db.VarChar(4000)
+  isStaff   Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail String?
+  action     String   @db.VarChar(120)
+  targetType String?  @db.VarChar(60)
+  targetId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+}

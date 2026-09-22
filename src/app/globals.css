@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 340 40% 99%;
+    --foreground: 240 10% 6%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 6%;
+    --primary: 340 75% 46%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 340 30% 96%;
+    --secondary-foreground: 340 40% 20%;
+    --muted: 340 15% 95%;
+    --muted-foreground: 240 4% 44%;
+    --accent: 300 40% 95%;
+    --accent-foreground: 300 40% 18%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 340 15% 90%;
+    --input: 340 15% 86%;
+    --ring: 340 75% 46%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 245 12% 7%;
+    --foreground: 340 15% 95%;
+    --card: 245 12% 10%;
+    --card-foreground: 340 15% 95%;
+    --popover: 245 12% 9%;
+    --popover-foreground: 340 15% 95%;
+    --primary: 340 80% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 245 10% 16%;
+    --secondary-foreground: 340 15% 88%;
+    --muted: 245 10% 15%;
+    --muted-foreground: 340 8% 62%;
+    --accent: 300 20% 18%;
+    --accent-foreground: 340 20% 92%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 245 10% 20%;
+    --input: 245 10% 24%;
+    --ring: 340 80% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-rose-500 via-fuchsia-500 to-rose-500 bg-clip-text text-transparent;
+  }
+  .brand-gradient {
+    background-image: linear-gradient(120deg, #e11d48, #d946ef 55%, #f43f5e);
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-zinc-300 dark:bg-zinc-700;
+  }
+}
