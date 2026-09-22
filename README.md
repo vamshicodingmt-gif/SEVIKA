@@ -85,19 +85,55 @@ npm run dev                 # http://localhost:3000
 
 ## Deploying to Vercel
 
-1. Push this repository to GitHub and import it in Vercel.
-2. Add a Postgres database with the **PostGIS extension** (Neon, Supabase and Railway all support it) and set `DATABASE_URL`.
-3. Set environment variables (see `.env.example`):
+The build passes with zero environment variables, so importing the repo into Vercel will succeed.
+The app only becomes *functional* once the database is connected — follow these steps in order:
 
-   **Required** — `DATABASE_URL`, `NEXTAUTH_SECRET` (`openssl rand -base64 32`), `NEXTAUTH_URL`, `NEXT_PUBLIC_APP_URL`
-   **Recommended** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (Maps JavaScript API), `S3_*` or `CLOUDINARY_*` for uploads
-   **Optional** — `UPSTASH_REDIS_REST_*` (rate limiting), `SMTP_*` (transactional email)
+**1. Create a PostgreSQL database** (any of: Vercel Postgres, Neon, Supabase, Railway).
+Copy the connection string (the **pooled** URL if your provider offers one).
+PostGIS is optional — Sevika auto-detects it and falls back to haversine distance search.
 
-4. Run the migrations against the production database once:
-   ```bash
-   DATABASE_URL="<prod url>" npm run db:migrate && DATABASE_URL="<prod url>" npm run db:seed
-   ```
-5. Deploy. `vercel.json` pins the framework, build command and security headers.
+**2. Import the repo in Vercel.** Leave *Root Directory* empty. `vercel.json` pins the build
+(`prisma generate && next build`) — no other build settings needed.
+
+**3. Add environment variables** in Vercel → Settings → Environment Variables:
+
+| Variable | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | ✅ | The Postgres connection string from step 1 |
+| `NEXTAUTH_SECRET` | ✅ | `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | ✅ | Your production URL, e.g. `https://sevika.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | ✅ | Same URL as above (used in emails/links) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | recommended | Maps JavaScript API key (map views) |
+| `S3_REGION`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | for uploads | Portfolio/certificate/avatar uploads |
+| `CLOUDINARY_*` | alternative | Cloudinary instead of S3 |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | optional | Rate limiting |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `EMAIL_FROM` | optional | Transactional email (logged to console when unset) |
+
+**4. Create the tables (one-time, from your machine):**
+
+```bash
+DATABASE_URL="<your production database url>" npx prisma migrate deploy
+```
+
+**5. Redeploy** (Deployments → ⋯ → Redeploy) so the serverless functions pick up the new env vars.
+
+**6. Verify** — open `https://your-app.vercel.app/api/health` and confirm `"database": "connected"`.
+Then create an account at `/register` and sign in at `/login`.
+
+Optional demo data (artists, bookings, reviews — includes the `admin@sevika.app` account):
+
+```bash
+DATABASE_URL="<your production database url>" npm run db:seed
+```
+
+### Troubleshooting
+
+| Symptom | Cause & fix |
+|---|---|
+| `/api/health` says `database: unreachable` | `DATABASE_URL` missing/wrong, or host requires SSL params — check your provider's pooled connection string |
+| APIs say "Database tables are missing" | Run `npx prisma migrate deploy` (step 4) |
+| Sign-in always says "Invalid email or password" | No account yet — register first at `/register`; demo accounts exist only after seeding |
+| PostGIS notices in migrate output | Expected on non-PostGIS hosts — nearby discovery uses haversine automatically |
 
 > The booking calendar uses the **artist's wall-clock convention**: slot times are stored as UTC instants whose wall clock equals the artist's local time and are rendered with `timeZone: "UTC"`, keeping the slot engine pure and unit-tested.
 

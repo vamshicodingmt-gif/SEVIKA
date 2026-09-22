@@ -4,7 +4,16 @@ import { compare } from "bcryptjs";
 import { db } from "@/lib/db";
 import { loginSchema } from "@/lib/validators";
 
+if (!process.env.NEXTAUTH_SECRET) {
+  console.warn(
+    "[auth] NEXTAUTH_SECRET is not set — falling back to an insecure development secret. " +
+      "Set NEXTAUTH_SECRET in your environment (generate with: openssl rand -base64 32)."
+  );
+}
+
 export const authOptions: NextAuthOptions = {
+  // Explicit secret so auth works even before env vars are configured.
+  secret: process.env.NEXTAUTH_SECRET || "sevika-insecure-fallback-secret-change-me",
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 },
   pages: { signIn: "/login" },
   providers: [

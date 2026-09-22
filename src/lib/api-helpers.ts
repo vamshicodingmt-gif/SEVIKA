@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError, type ZodType, type ZodTypeDef } from "zod";
+import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -11,6 +12,34 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+/** Friendly guidance for the two common first-deploy database states. */
+function mapDatabaseError(err: unknown): NextResponse | null {
+  if (err instanceof Prisma.PrismaClientInitializationError) {
+    console.error("[api] database unreachable:", err.message);
+    return NextResponse.json(
+      {
+        error:
+          "Sevika can't reach the database. Check DATABASE_URL, then run migrations (npm run db:migrate). Status: /api/health",
+      },
+      { status: 503 }
+    );
+  }
+  if (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    (err.code === "P2021" || err.code === "P2022")
+  ) {
+    console.error("[api] database tables missing:", err.message);
+    return NextResponse.json(
+      {
+        error:
+          "Database tables are missing. Run migrations once against this database: npx prisma migrate deploy (see README → Deploying to Vercel).",
+      },
+      { status: 503 }
+    );
+  }
+  return null;
 }
 
 export function jsonOk<T>(data: T, status = 200) {
@@ -35,6 +64,8 @@ export function route<Args extends unknown[]>(
           { status: 400 }
         );
       }
+      const dbResponse = mapDatabaseError(err);
+      if (dbResponse) return dbResponse;
       console.error("[api]", err);
       return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
     }
